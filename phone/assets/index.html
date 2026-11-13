@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Phone Remote</title>
+<style>
+  :root {
+    --bg: #101216; --panel: #1a1d23; --panel2: #23272f; --line: #2e333c;
+    --text: #e8eaee; --muted: #8a919c; --accent: #4f8cff; --danger: #ff5c5c; --ok: #3ecf8e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden;
+    user-select: none; -webkit-user-select: none; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 0; touch-action: manipulation; }
+  button:active, button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px; width: 100%; user-select: text; -webkit-user-select: text; }
+  .hidden { display: none !important; }
+
+  /* connect screen */
+  #connect { height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 24px; gap: 12px; max-width: 420px; margin: 0 auto; }
+  #connect h1 { margin: 0 0 4px; font-size: 24px; }
+  #connect p { margin: 0 0 8px; color: var(--muted); }
+  #connect label { font-size: 13px; color: var(--muted); }
+  #connect .go { background: var(--accent); border-color: var(--accent); padding: 14px 0; font-weight: 600; margin-top: 8px; }
+  #status { min-height: 20px; color: var(--danger); font-size: 14px; }
+
+  /* main screen */
+  #main { height: 100%; display: flex; flex-direction: column; padding: 10px; gap: 8px; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .top { align-items: center; }
+  .top .dot { flex: 0 0 10px; height: 10px; border-radius: 50%; background: var(--ok); }
+  .top .dot.bad { background: var(--danger); }
+  .top .name { flex: 1; color: var(--muted); font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .top button { flex: 0 0 auto; padding: 6px 12px; font-size: 13px; }
+
+  .vol { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; align-items: center; }
+  .vol button { flex: 0 0 46px; padding: 8px 0; }
+  .vol .num { flex: 0 0 38px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { flex: 1; -webkit-appearance: none; appearance: none; background: transparent; border: 0; padding: 14px 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--p, 50%), var(--line) var(--p, 50%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #fff; margin-top: -10px; box-shadow: 0 1px 4px #0008; }
+
+  #pad { flex: 1; min-height: 120px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    touch-action: none; position: relative; display: flex; align-items: center; justify-content: center; color: #3a404b; font-size: 13px; text-align: center; }
+  #pad .hint { pointer-events: none; padding: 0 20px; }
+  #scrollbar { position: absolute; right: 0; top: 0; bottom: 0; width: 40px; border-left: 1px dashed var(--line); border-radius: 0 14px 14px 0; }
+  .mbtn button { padding: 16px 0; }
+  .keys button { padding: 9px 0; font-size: 13px; }
+  .media button { padding: 8px 0; font-size: 16px; }
+  #kbd { position: fixed; left: -1000px; top: 0; width: 10px; height: 10px; opacity: 0; }
+</style>
+</head>
+<body>
+
+<div id="connect">
+  <h1>Phone Remote</h1>
+  <p>Run PhoneRemote on your PC. It shows the IP address and PIN to enter here.</p>
+  <label for="ip">PC IP address</label>
+  <input id="ip" inputmode="decimal" placeholder="192.168.1.20" autocomplete="off">
+  <label for="pin">PIN</label>
+  <input id="pin" inputmode="numeric" placeholder="1234" autocomplete="off">
+  <button class="go" id="goBtn">Connect</button>
+  <div id="status"></div>
+</div>
+
+<div id="main" class="hidden">
+  <div class="row top">
+    <div class="dot" id="dot"></div>
+    <div class="name" id="name"></div>
+    <button id="sensBtn">Speed 1.5x</button>
+    <button id="discBtn">Disconnect</button>
+  </div>
+
+  <div class="row vol">
+    <button id="muteBtn">🔊</button>
+    <input type="range" id="vol" min="0" max="100" value="50">
+    <div class="num" id="volNum">50</div>
+  </div>
+
+  <div class="row media">
+    <button data-key="prev">⏮</button>
+    <button data-key="playpause">⏯</button>
+    <button data-key="next">⏭</button>
+  </div>
+
+  <div id="pad">
+    <div class="hint">Move: 1 finger · Tap: left click<br>2-finger tap: right click · 2-finger drag or right edge: scroll</div>
+    <div id="scrollbar"></div>
+  </div>
+
+  <div class="row mbtn">
+    <button id="lBtn">Left</button>
+    <button id="holdBtn">Hold</button>
+    <button id="rBtn">Right</button>
+  </div>
+
+  <div class="row keys">
+    <button data-key="esc">Esc</button>
+    <button data-key="tab">Tab</button>
+    <button data-mod="ctrl">Ctrl</button>
+    <button data-mod="alt">Alt</button>
+    <button data-mod="win">Win</button>
+    <button data-key="backspace">⌫</button>
+  </div>
+  <div class="row keys">
+    <button data-key="left">←</button>
+    <button data-key="up">↑</button>
+    <button data-key="down">↓</button>
+    <button data-key="right">→</button>
+    <button data-key="enter">Enter</button>
+    <button id="kbdBtn">⌨ Type</button>
+  </div>
+</div>
+
+<textarea id="kbd" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  var PORT = 8765;
+  var ws = null, wantConnected = false, retryTimer = null, authed = false;
+  // When this page is served by the PC itself (opened in a browser), use that host.
+  var servedByPC = location.protocol === "http:" || location.protocol === "https:";
+
+  $("ip").value = store.get("ip");
+  $("pin").value = store.get("pin");
+  if (servedByPC) { $("ip").value = location.hostname; $("ip").parentNode.removeChild($("ip").previousElementSibling); $("ip").style.display = "none"; }
+
+  function send(obj) { if (ws && ws.readyState === 1 && authed) ws.send(JSON.stringify(obj)); }
+
+  function showMain(on) {
+    $("connect").classList.toggle("hidden", on);
+    $("main").classList.toggle("hidden", !on);
+  }
+
+  function connect() {
+    var ip = $("ip").value.trim(), pin = $("pin").value.trim();
+    if (!ip) { $("status").textContent = "Enter your PC's IP address."; return; }
+    var host = ip.indexOf(":") >= 0 ? ip : ip + ":" + (servedByPC && location.port ? location.port : PORT);
+    store.set("ip", ip); store.set("pin", pin);
+    wantConnected = true;
+    $("status").style.color = "var(--muted)";
+    $("status").textContent = "Connecting to " + host + "…";
+    open(host, pin);
+  }
+
+  function open(host, pin) {
+    clearTimeout(retryTimer);
+    try { if (ws) { ws.onclose = null; ws.close(); } } catch (e) {}
+    authed = false;
+    var sock;
+    try { sock = new WebSocket("ws://" + host + "/ws"); } catch (e) { fail("Bad address."); return; }
+    ws = sock;
+    var timeout = setTimeout(function () { if (!authed) { sock.close(); } }, 5000);
+    sock.onopen = function () { sock.send(JSON.stringify({ t: "auth", pin: pin })); };
+    sock.onmessage = function (ev) {
+      var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.t === "ok") {
+        clearTimeout(timeout);
+        authed = true;
+        $("name").textContent = (m.name || "PC") + " · " + host;
+        $("dot").classList.remove("bad");
+        showMain(true);
+        setVol(m.vol, m.muted);
+      } else if (m.t === "vol") {
+        if (!volDragging) setVol(m.vol, m.muted);
+      } else if (m.t === "err") {
+        wantConnected = false;
+        clearTimeout(timeout);
+        fail(m.msg || "Refused by PC.");
+        sock.close();
+      }
+    };
+    sock.onclose = function () {
+      clearTimeout(timeout);
+      var wasAuthed = authed;
+      authed = false;
+      $("dot").classList.add("bad");
+      if (!wantConnected) return;
+      if (wasAuthed) {
+        // dropped mid-session: keep retrying quietly
+        retryTimer = setTimeout(function () { open(host, pin); }, 1500);
+      } else {
+        fail("Couldn't connect. Check the IP, that PhoneRemote is running on the PC, and that both are on the same Wi-Fi.");
+      }
+    };
+  }
+
+  function fail(msg) {
+    showMain(false);
+    $("status").style.color = "var(--danger)";
+    $("status").textContent = msg;
+  }
+
+  $("goBtn").onclick = connect;
+  $("pin").addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
+  $("discBtn").onclick = function () {
+    wantConnected = false; clearTimeout(retryTimer);
+    if (ws) ws.close();
+    showMain(false); $("status").textContent = "";
+  };
+  if (store.get("ip") && store.get("pin")) connect();
+  else if (servedByPC && store.get("pin")) connect();
+
+  // ---------- volume ----------
+  var volDragging = false, muted = false, volSendTimer = null;
+  function paintVol() { var v = $("vol").value; $("volNum").textContent = v; $("vol").style.setProperty("--p", v + "%"); }
+  function setVol(v, m) {
+    if (typeof v === "number" && v >= 0) $("vol").value = v;
+    muted = !!m;
+    $("muteBtn").textContent = muted ? "🔇" : "🔊";
+    $("muteBtn").classList.toggle("on", muted);
+    paintVol();
+  }
+  $("vol").addEventListener("input", function () {
+    volDragging = true; paintVol();
+    if (!volSendTimer) volSendTimer = setTimeout(function () { volSendTimer = null; send({ t: "vol", v: +$("vol").value }); }, 40);
+  });
+  $("vol").addEventListener("change", function () { volDragging = false; send({ t: "vol", v: +$("vol").value }); });
+  $("muteBtn").onclick = function () { send({ t: "mute", on: !muted }); setVol(-1, !muted); };
+
+  // ---------- trackpad ----------
+  var speeds = [1, 1.5, 2, 3], speedIdx = +(store.get("speed") || 1);
+  if (!(speedIdx >= 0 && speedIdx < speeds.length)) speedIdx = 1;
+  function paintSpeed() { $("sensBtn").textContent = "Speed " + speeds[speedIdx] + "x"; }
+  paintSpeed();
+  $("sensBtn").onclick = function () { speedIdx = (speedIdx + 1) % speeds.length; store.set("speed", speedIdx); paintSpeed(); };
+
+  var pad = $("pad"), touches = {}, gesture = null;
+  var accX = 0, accY = 0, accS = 0, raf = 0;
+  function flush() {
+    raf = 0;
+    var dx = Math.round(accX), dy = Math.round(accY);
+    if (dx || dy) { send({ t: "move", dx: dx, dy: dy }); accX -= dx; accY -= dy; }
+    if (Math.abs(accS) >= 1) { var s = Math.round(accS); send({ t: "scroll", dy: s }); accS -= s; }
+  }
+  function queue() { if (!raf) raf = requestAnimationFrame(flush); }
+
+  pad.addEventListener("touchstart", function (e) {
+    e.preventDefault();
+    var t0 = e.changedTouches[0];
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      touches[t.identifier] = { x: t.clientX, y: t.clientY };
+    }
+    var n = Object.keys(touches).length;
+    if (!gesture) {
+      var r = pad.getBoundingClientRect();
+      gesture = { start: Date.now(), max: n, moved: 0, edge: n === 1 && t0.clientX > r.right - 40 };
+    } else {
+      gesture.max = Math.max(gesture.max, n);
+    }
+  }, { passive: false });
+
+  pad.addEventListener("touchmove", function (e) {
+    e.preventDefault();
+    if (!gesture) return;
+    var n = Object.keys(touches).length, sx = 0, sy = 0, c = 0;
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i], p = touches[t.identifier];
+      if (!p) continue;
+      sx += t.clientX - p.x; sy += t.clientY - p.y; c++;
+      p.x = t.clientX; p.y = t.clientY;
+    }
+    if (!c) return;
+    var dx = sx / c, dy = sy / c;
+    gesture.moved += Math.abs(dx) + Math.abs(dy);
+    if (gesture.edge || n >= 2) {
+      accS += dy / 12;             // scroll: drag up = scroll page down, like a phone
+    } else {
+      var sp = speeds[speedIdx];
+      // mild acceleration for fast flicks
+      var mag = Math.sqrt(dx * dx + dy * dy), acc = 1 + Math.min(mag / 25, 1.5);
+      accX += dx * sp * acc; accY += dy * sp * acc;
+    }
+    queue();
+  }, { passive: false });
+
+  function endTouch(e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) delete touches[e.changedTouches[i].identifier];
+    if (Object.keys(touches).length === 0 && gesture) {
+      var dur = Date.now() - gesture.start;
+      if (!gesture.edge && dur < 250 && gesture.moved < 12) {
+        send({ t: "click", b: gesture.max >= 2 ? "right" : "left" });
+      }
+      gesture = null;
+    }
+  }
+  pad.addEventListener("touchend", endTouch, { passive: false });
+  pad.addEventListener("touchcancel", endTouch, { passive: false });
+
+  // mouse fallback (when opened in a desktop browser for testing)
+  var mdown = null;
+  pad.addEventListener("mousedown", function (e) { mdown = { x: e.clientX, y: e.clientY, moved: 0, t: Date.now() }; });
+  window.addEventListener("mousemove", function (e) {
+    if (!mdown) return;
+    var dx = e.clientX - mdown.x, dy = e.clientY - mdown.y;
+    mdown.x = e.clientX; mdown.y = e.clientY; mdown.moved += Math.abs(dx) + Math.abs(dy);
+    accX += dx * speeds[speedIdx]; accY += dy * speeds[speedIdx]; queue();
+  });
+  window.addEventListener("mouseup", function () {
+    if (mdown && mdown.moved < 4 && Date.now() - mdown.t < 300) send({ t: "click", b: "left" });
+    mdown = null;
+  });
+  pad.addEventListener("wheel", function (e) { e.preventDefault(); accS += -e.deltaY / 40; queue(); }, { passive: false });
+
+  // ---------- mouse buttons ----------
+  function tapBtn(el, fn) {
+    el.addEventListener("click", function (e) { e.preventDefault(); fn(); });
+  }
+  tapBtn($("lBtn"), function () { if (holding) toggleHold(); send({ t: "click", b: "left" }); });
+  tapBtn($("rBtn"), function () { send({ t: "click", b: "right" }); });
+  var holding = false;
+  function toggleHold() {
+    holding = !holding;
+    send({ t: holding ? "down" : "up", b: "left" });
+    $("holdBtn").classList.toggle("on", holding);
+  }
+  tapBtn($("holdBtn"), toggleHold);
+
+  // ---------- keys & modifiers ----------
+  var mods = {};
+  function activeMods() { return Object.keys(mods).filter(function (k) { return mods[k]; }); }
+  function clearMods() {
+    mods = {};
+    var b = document.querySelectorAll("[data-mod]");
+    for (var i = 0; i < b.length; i++) b[i].classList.remove("on");
+  }
+  function sendKey(k) {
+    send({ t: "key", k: k, mods: activeMods() });
+    clearMods();
+  }
+  var mb = document.querySelectorAll("[data-mod]");
+  for (var i = 0; i < mb.length; i++) (function (b) {
+    tapBtn(b, function () {
+      var m = b.getAttribute("data-mod");
+      mods[m] = !mods[m];
+      b.classList.toggle("on", mods[m]);
+      // tapping Win alone then nothing else = open Start: handled server-side on the next key, or send now if long idle
+    });
+  })(mb[i]);
+  var kb = document.querySelectorAll("[data-key]");
+  for (var j = 0; j < kb.length; j++) (function (b) {
+    tapBtn(b, function () { sendKey(b.getAttribute("data-key")); });
+  })(kb[j]);
+  // Double-tap Win with nothing else = press Win (opens Start menu)
+  var winBtn = document.querySelector('[data-mod="win"]'), lastWin = 0;
+  winBtn.addEventListener("click", function () {
+    var now = Date.now();
+    if (now - lastWin < 350) { clearMods(); send({ t: "key", k: "win", mods: [] }); lastWin = 0; }
+    else lastWin = now;
+  });
+
+  // ---------- typing via phone keyboard ----------
+  // Android keyboards don't send reliable key events, so we diff the textarea's
+  // contents after each change and send the difference to the PC.
+  var kbd = $("kbd"), SENT = "​​​​​​​​", prev = SENT, composing = false;
+  function resetKbd() { kbd.value = SENT; prev = SENT; try { kbd.setSelectionRange(SENT.length, SENT.length); } catch (e) {} }
+  resetKbd();
+  $("kbdBtn").addEventListener("click", function (e) {
+    e.preventDefault();
+    if (document.activeElement === kbd) { kbd.blur(); return; }
+    resetKbd(); kbd.focus();
+  });
+  kbd.addEventListener("compositionstart", function () { composing = true; });
+  kbd.addEventListener("compositionend", function () { composing = false; diff(); });
+  kbd.addEventListener("input", diff);
+  function diff() {
+    var cur = kbd.value;
+    if (cur === prev) return;
+    var p = 0;
+    while (p < cur.length && p < prev.length && cur[p] === prev[p]) p++;
+    var removed = prev.length - p, added = cur.slice(p);
+    var ms = activeMods();
+    if (ms.length && added.length === 1 && removed === 0 && added !== "\n") {
+      // Ctrl+C, Alt+F4-style combos typed through the keyboard
+      send({ t: "key", k: added.toLowerCase(), mods: ms });
+      clearMods();
+    } else {
+      for (var i = 0; i < removed; i++) send({ t: "key", k: "backspace", mods: [] });
+      var parts = added.split("\n");
+      for (var k = 0; k < parts.length; k++) {
+        var txt = parts[k].replace(/​/g, "");
+        if (txt) send({ t: "text", s: txt });
+        if (k < parts.length - 1) send({ t: "key", k: "enter", mods: [] });
+      }
+    }
+    prev = cur;
+    // keep the buffer short and refill the sentinel so backspace keeps working
+    if (!composing && (cur.indexOf("\n") >= 0 || cur.length > 40 || cur.length < 3)) resetKbd();
+  }
+  kbd.addEventListener("keydown", function (e) {
+    // hardware/desktop keyboards do send these
+    var map = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "esc", Tab: "tab", Delete: "delete" };
+    if (map[e.key]) { e.preventDefault(); sendKey(map[e.key]); }
+    else if (e.key === "Backspace" && kbd.value === SENT) { e.preventDefault(); sendKey("backspace"); }
+  });
+})();
+</script>
+</body>
+</html>

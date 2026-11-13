@@ -1,0 +1,10 @@
+# build output & downloaded tools
+dist/
+tools/
+phone/build/
+pc/index.html
+# secrets / per-machine files — never commit
+*.p12
+*.jks
+*.keystore
+phoneremote-pin.txt
